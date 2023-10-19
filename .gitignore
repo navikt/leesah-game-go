@@ -1,0 +1,34 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+.DS_Store
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dry run creates vaules for helm charts
+charts/*
+
+# Running local needs Helm repo file (or Helm installed)
+.helm-repositories.yaml
+
+# editors
+.idea
+.tool-versions
+*.json
+*.env
+.default-egress-airflow-worker.yaml
+
+hack
+
+# npm
+node_modules
+!package-lock.json
+!package.json
