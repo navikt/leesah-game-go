@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,33 +23,21 @@ type Rapid struct {
 }
 
 type RapidHandlers struct {
-	HandleQuestion   func(question Question) (Answer, error)
-	HandleAssessment func(assessment Assessment) error
+	HandleQuestion   func(question Question) (string, bool)
+	HandleAssessment func(assessment Assessment)
 }
 
-type rapidConfig struct {
+type RapidConfig struct {
 	Brokers             string
 	Topic               string
 	GroupID             string
 	KafkaCertPath       string
 	KafkaPrivateKeyPath string
 	KafkaCAPath         string
+	Log                 *slog.Logger
 }
 
-var config = rapidConfig{}
-
-func init() {
-	flag.StringVar(&config.Brokers, "brokers", os.Getenv("KAFKA_BROKERS"), "Kafka broker")
-	flag.StringVar(&config.Topic, "topic", os.Getenv("KAFKA_TOPIC"), "Kafka topic")
-	flag.StringVar(&config.GroupID, "group-id", os.Getenv("KAFKA_GROUP_ID"), "Kafka group ID")
-	flag.StringVar(&config.KafkaCertPath, "kafka-cert-path", os.Getenv("KAFKA_CERTIFICATE_PATH"), "Path to Kafka certificate")
-	flag.StringVar(&config.KafkaPrivateKeyPath, "kafka-private-key-path", os.Getenv("KAFKA_PRIVATE_KEY_PATH"), "Path to Kafka private key")
-	flag.StringVar(&config.KafkaCAPath, "kafka-ca-path", os.Getenv("KAFKA_CA_PATH"), "Path to Kafka CA certificate")
-}
-
-func NewRapid(teamName string, logger *slog.Logger) (*Rapid, error) {
-	flag.Parse()
-
+func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	keypair, err := tls.LoadX509KeyPair(config.KafkaCertPath, config.KafkaPrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Access Key and/or Access Certificate: %s", err)
@@ -78,7 +65,7 @@ func NewRapid(teamName string, logger *slog.Logger) (*Rapid, error) {
 	rapid := Rapid{
 		ctx:      context.Background(),
 		teamName: teamName,
-		log:      logger,
+		log:      config.Log,
 	}
 
 	rapid.writer = &kafka.Writer{
@@ -95,15 +82,17 @@ func NewRapid(teamName string, logger *slog.Logger) (*Rapid, error) {
 		},
 	}
 
+	if config.GroupID == "" {
+		return nil, fmt.Errorf("group ID is required")
+	}
+
 	readerConfig := kafka.ReaderConfig{
 		Brokers:   []string{config.Brokers},
 		Topic:     config.Topic,
 		Partition: 0,
 		MaxBytes:  10e6, // 10MB
 		Dialer:    dialer,
-	}
-	if config.GroupID != "" {
-		readerConfig.GroupID = config.GroupID
+		GroupID:   config.GroupID,
 	}
 
 	rapid.reader = kafka.NewReader(readerConfig)
@@ -111,7 +100,6 @@ func NewRapid(teamName string, logger *slog.Logger) (*Rapid, error) {
 	return &rapid, nil
 }
 
-// Run starts the Rapid loop
 func (r *Rapid) Run(handlers RapidHandlers) error {
 	for {
 		kafkaMessage, err := r.reader.FetchMessage(r.ctx)
@@ -120,62 +108,58 @@ func (r *Rapid) Run(handlers RapidHandlers) error {
 			continue
 		}
 
-		var message LeesahMessage
+		var message Message
 		if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
-			r.log.Error(fmt.Sprintf("failed to unmarshal message: %s", err))
-			continue
+			return fmt.Errorf("failed to unmarshal message: %s", err)
 		}
 
-		if message.TeamName == r.teamName {
-			if err := r.handleTeamMessage(message, handlers); err != nil {
-				r.log.Error(fmt.Sprintf("failed to handle message: %s", err))
-				continue
-			}
+		if err := r.handleMessage(message, handlers); err != nil {
+			return fmt.Errorf("failed to handle message: %s", err)
 		}
 
 		if err := r.reader.CommitMessages(r.ctx, kafkaMessage); err != nil {
-			r.log.Error(fmt.Sprintf("failed to commit message: %s", err))
+			return fmt.Errorf("failed to commit message: %s", err)
 		}
 	}
 }
 
-func (r *Rapid) handleTeamMessage(message LeesahMessage, handlers RapidHandlers) error {
+func (r *Rapid) handleMessage(message Message, handlers RapidHandlers) error {
 	switch message.Type {
-	case message_type_question:
+	case MessageTypeQuestion:
 		if handlers.HandleQuestion != nil {
-			answer, err := handlers.HandleQuestion(message.ToQuestion())
-			if err != nil {
-				return fmt.Errorf("failed to handle question: %s", err)
+			answer, ok := handlers.HandleQuestion(message.ToQuestion())
+			if !ok {
+				return nil
 			}
 
-			if err := r.writeMessage(answer); err != nil {
+			message := Message{
+				MessageID:  uuid.New(),
+				QuestionID: message.MessageID,
+				Category:   message.Category,
+				Created:    time.Now().Format(LeesahTimeformat),
+				TeamName:   r.teamName,
+				Type:       MessageTypeAnswer,
+				Answer:     answer,
+			}
+
+			if err := r.writeMessage(message); err != nil {
 				return fmt.Errorf("failed to write message: %s", err)
 			}
 		}
-	case message_type_assessment:
+	case MessageTypeAnswer:
+		if message.TeamName != r.teamName {
+			return nil
+		}
+
 		if handlers.HandleAssessment != nil {
-			if err := handlers.HandleAssessment(message.ToAssessment()); err != nil {
-				return fmt.Errorf("failed to handle assessment: %s", err)
-			}
+			handlers.HandleAssessment(message.ToAssessment())
 		}
 	}
 
 	return nil
 }
 
-// WriteMessage writes an Answer object to the Kafka topic. This function will automatically generate a MessageId and Created timestamp. It will also commit the offset of the message.
-func (r *Rapid) writeMessage(answer Answer) error {
-	message := LeesahMessage{
-		Answer:     answer.Answer,
-		AnswerID:   uuid.New(),
-		MessageID:  uuid.New(),
-		QuestionID: answer.QuestionID,
-		Category:   answer.Category,
-		Created:    time.Now().Format(time.RFC3339),
-		TeamName:   r.teamName,
-		Type:       message_type_answer,
-	}
-
+func (r *Rapid) writeMessage(message Message) error {
 	output, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %s", err)

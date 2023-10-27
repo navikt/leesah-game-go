@@ -5,69 +5,55 @@ import (
 )
 
 type (
-	message_type      string
-	assessment_status string
+	MessageType      string
+	AssessmentStatus string
 )
 
 const (
-	message_type_question   message_type = "QUESTION"
-	message_type_answer                  = "ANSWER"
-	message_type_assessment              = "ASSESSMENT"
+	MessageTypeQuestion   MessageType = "QUESTION"
+	MessageTypeAnswer                 = "ANSWER"
+	MessageTypeAssessment             = "ASSESSMENT"
 
-	assessment_status_success assessment_status = "SUCCESS"
-	assessment_status_failure                   = "FAILURE"
+	AssessmentStatusSuccess AssessmentStatus = "SUCCESS"
+	AssessmentStatusFailure                  = "FAILURE"
+
+	LeesahTimeformat = "2006-01-02T15:04:05.999999"
 )
 
-type LeesahMessage struct {
-	Answer     string            `json:"answer"`
-	AnswerID   uuid.UUID         `json:"answerId"`
-	MessageID  uuid.UUID         `json:"messageId"`
-	QuestionID uuid.UUID         `json:"questionId"`
-	Category   string            `json:"category"`
-	Created    string            `json:"created"`
-	TeamName   string            `json:"teamName"`
-	Type       message_type      `json:"type"`
-	Status     assessment_status `json:"status"`
-	Sign       string            `json:"sign"`
+type Message struct {
+	Answer     string           `json:"answer,omitempty"`
+	AnswerID   *uuid.UUID       `json:"answerId,omitempty"`
+	MessageID  uuid.UUID        `json:"messageId,omitempty"`
+	Question   string           `json:"question,omitempty"`
+	QuestionID uuid.UUID        `json:"questionId,omitempty"`
+	Category   string           `json:"category,omitempty"`
+	Created    string           `json:"created,omitempty"`
+	TeamName   string           `json:"teamName,omitempty"`
+	Type       MessageType      `json:"type,omitempty"`
+	Status     AssessmentStatus `json:"status,omitempty"`
 }
 
-func (m LeesahMessage) ToQuestion() Question {
+func (m Message) ToQuestion() Question {
 	return Question{
-		Category:  m.Category,
-		MessageID: m.MessageID,
-		Question:  m.Sign,
+		Category: m.Category,
+		Question: m.Question,
 	}
 }
 
-func (m LeesahMessage) ToAssessment() Assessment {
+func (m Message) ToAssessment() Assessment {
 	return Assessment{
-		AnswerID:   m.AnswerID,
-		MessageID:  m.MessageID,
-		QuestionID: m.QuestionID,
-		Category:   m.Category,
-		Status:     m.Status,
-		Sign:       m.Sign,
+		Category: m.Category,
+		Status:   m.Status,
 	}
-}
-
-type Answer struct {
-	Answer     string
-	Category   string
-	MessageID  uuid.UUID
-	QuestionID uuid.UUID
 }
 
 type Assessment struct {
-	AnswerID   uuid.UUID
-	MessageID  uuid.UUID
-	QuestionID uuid.UUID
-	Category   string
-	Status     assessment_status
-	Sign       string
+	Category string
+	Status   AssessmentStatus
+	TeamName string
 }
 
 type Question struct {
-	Category  string
-	MessageID uuid.UUID
-	Question  string
+	Category string
+	Question string
 }

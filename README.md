@@ -8,31 +8,46 @@ Go-biblitek for å spille LEESAH!
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/navikt/go-leesah/pkg/leesah"
+	"github.com/google/uuid"
+	"github.com/navikt/go-leesah"
 )
 
 type Participant struct {
 	log *slog.Logger
 }
 
-func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	os.Setenv("KAFKA_GROUP_ID", your-group-id)
+var config = leesah.RapidConfig{}
+
+func init() {
+	os.Setenv("KAFKA_GROUP_ID", uuid.New().String())
 	os.Setenv("KAFKA_TOPIC", "leesah-quiz.leesah-rapid-v2")
 
-	rapid, err := leesah.NewRapid("my-team", logger)
+	flag.StringVar(&config.Brokers, "brokers", os.Getenv("KAFKA_BROKERS"), "Kafka broker")
+	flag.StringVar(&config.Topic, "topic", os.Getenv("KAFKA_TOPIC"), "Kafka topic")
+	flag.StringVar(&config.GroupID, "group-id", os.Getenv("KAFKA_GROUP_ID"), "Kafka group ID")
+	flag.StringVar(&config.KafkaCertPath, "kafka-cert-path", os.Getenv("KAFKA_CERTIFICATE_PATH"), "Path to Kafka certificate")
+	flag.StringVar(&config.KafkaPrivateKeyPath, "kafka-private-key-path", os.Getenv("KAFKA_PRIVATE_KEY_PATH"), "Path to Kafka private key")
+	flag.StringVar(&config.KafkaCAPath, "kafka-ca-path", os.Getenv("KAFKA_CA_PATH"), "Path to Kafka CA certificate")
+}
+
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	config.Log = log
+
+	rapid, err := leesah.NewRapid("my-team", config)
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to create rapid: %s", err))
+		log.Error(fmt.Sprintf("failed to create rapid: %s", err))
 		return
 	}
 	defer rapid.Close()
 
 	p := Participant{
-		log: logger,
+		log: log,
 	}
 
 	rapidHandlers := leesah.RapidHandlers{
@@ -40,16 +55,24 @@ func main() {
 	}
 
 	if err := rapid.Run(rapidHandlers); err != nil {
-		logger.Error(fmt.Sprintf("failed to run rapid: %s", err))
+		log.Error(fmt.Sprintf("failed to run rapid: %s", err))
 	}
 }
 
-func (p Participant) HandleQuestion(question leesah.Question) (leesah.Answer, error) {
+func (p Participant) HandleQuestion(question leesah.Question) (string, bool) {
 	p.log.Info(fmt.Sprintf("%+v", question))
 
-	# your code goes here
+	var answer string
+	switch question.Category {
+	case "team-registration":
+		answer = "00ADD8"
+	default:
+		p.log.Error(fmt.Sprintf("no answer for %s question", question.Category))
+		return "", false
+	}
 
-	return leesah.Answer{}, fmt.Errorf("no answer for this question")
+	p.log.Info(fmt.Sprintf("{Category:%s Question:%s Answer:%s", question.Category, question.Question, answer))
+	return answer, true
 }
 ```
 ### Lokal kjøring
