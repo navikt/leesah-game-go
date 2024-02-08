@@ -22,11 +22,6 @@ type Rapid struct {
 	log      *slog.Logger
 }
 
-type RapidHandlers struct {
-	HandleQuestion   func(question Question) (string, bool)
-	HandleAssessment func(assessment Assessment)
-}
-
 type RapidConfig struct {
 	Brokers             string
 	Topic               string
@@ -100,7 +95,7 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	return &rapid, nil
 }
 
-func (r *Rapid) Run(handlers RapidHandlers) error {
+func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) error {
 	for {
 		kafkaMessage, err := r.reader.FetchMessage(r.ctx)
 		if err != nil {
@@ -113,8 +108,13 @@ func (r *Rapid) Run(handlers RapidHandlers) error {
 			return fmt.Errorf("failed to unmarshal message: %s", err)
 		}
 
-		if err := r.handleMessage(message, handlers); err != nil {
-			return fmt.Errorf("failed to handle message: %s", err)
+		answer, ok := answerQuestion(message.ToQuestion(), r.log)
+		if !ok {
+			continue
+		}
+
+		if err := r.postAnswer(message, answer); err != nil {
+			return fmt.Errorf("failed to post answer: %s", err)
 		}
 
 		if err := r.reader.CommitMessages(r.ctx, kafkaMessage); err != nil {
@@ -123,40 +123,18 @@ func (r *Rapid) Run(handlers RapidHandlers) error {
 	}
 }
 
-func (r *Rapid) handleMessage(message Message, handlers RapidHandlers) error {
-	switch message.Type {
-	case MessageTypeQuestion:
-		if handlers.HandleQuestion != nil {
-			answer, ok := handlers.HandleQuestion(message.ToQuestion())
-			if !ok {
-				return nil
-			}
-
-			message := Message{
-				MessageID:  uuid.New(),
-				QuestionID: message.MessageID,
-				Category:   message.Category,
-				Created:    time.Now().Format(LeesahTimeformat),
-				TeamName:   r.teamName,
-				Type:       MessageTypeAnswer,
-				Answer:     answer,
-			}
-
-			if err := r.writeMessage(message); err != nil {
-				return fmt.Errorf("failed to write message: %s", err)
-			}
-		}
-	case MessageTypeAnswer:
-		if message.TeamName != r.teamName {
-			return nil
-		}
-
-		if handlers.HandleAssessment != nil {
-			handlers.HandleAssessment(message.ToAssessment())
-		}
+func (r *Rapid) postAnswer(message Message, answer string) error {
+	kafkaMessage := Message{
+		MessageID:  uuid.New(),
+		QuestionID: message.MessageID,
+		Category:   message.Category,
+		Created:    time.Now().Format(LeesahTimeformat),
+		TeamName:   r.teamName,
+		Type:       MessageTypeAnswer,
+		Answer:     answer,
 	}
 
-	return nil
+	return r.writeMessage(kafkaMessage)
 }
 
 func (r *Rapid) writeMessage(message Message) error {
