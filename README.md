@@ -1,8 +1,11 @@
 # Go LEESAH
 
-Go-biblitek for å spille LEESAH!
+Go-bibliotek for å spille LEESAH!
 
 ## Kom i gang
+
+Vi har et eget template-repo som ligger under [navikt/leesah-game-template-go](https://github.com/navikt/leesah-game-template-go).
+Ellers kan du ta utgangspunkt i koden nedenfor.
 
 ```go
 package main
@@ -17,11 +20,7 @@ import (
 	"github.com/navikt/go-leesah"
 )
 
-type Participant struct {
-	log *slog.Logger
-}
-
-var config = leesah.RapidConfig{}
+var config leesah.RapidConfig
 
 func init() {
 	os.Setenv("KAFKA_GROUP_ID", uuid.New().String())
@@ -39,41 +38,31 @@ func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	config.Log = log
 
-	rapid, err := leesah.NewRapid("my-team", config)
+	rapid, err := leesah.NewRapid("my-go-team", config)
 	if err != nil {
 		log.Error(fmt.Sprintf("failed to create rapid: %s", err))
 		return
 	}
 	defer rapid.Close()
 
-	p := Participant{
-		log: log,
-	}
-
-	rapidHandlers := leesah.RapidHandlers{
-		HandleQuestion: p.HandleQuestion,
-	}
-
-	if err := rapid.Run(rapidHandlers); err != nil {
+	if err := rapid.Run(Answer); err != nil {
 		log.Error(fmt.Sprintf("failed to run rapid: %s", err))
 	}
 }
 
-func (p Participant) HandleQuestion(question leesah.Question) (string, bool) {
-	p.log.Info(fmt.Sprintf("%+v", question))
+func Answer(question leesah.Question, log *slog.Logger) (string, bool) {
+	log.Info(fmt.Sprintf("%+v", question))
 
 	var answer string
 	switch question.Category {
 	case "team-registration":
-		answer = "00ADD8"
-	default:
-		p.log.Error(fmt.Sprintf("no answer for %s question", question.Category))
-		return "", false
+		return "", true
 	}
 
-	p.log.Info(fmt.Sprintf("{Category:%s Question:%s Answer:%s", question.Category, question.Question, answer))
-	return answer, true
+	log.Info(fmt.Sprintf("{Category:%s Question:%s Answer:%s", question.Category, question.Question, answer))
+	return "", false
 }
+
 ```
 ### Lokal kjøring
 
