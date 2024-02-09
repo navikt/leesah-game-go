@@ -1,72 +1,75 @@
 # Go LEESAH
 
+> Leesah-game er et hendelsedrevet applikasjonsutviklingspill som utfordrer spillerne til å bygge en hendelsedrevet applikasjon. 
+> Applikasjonen håndterer forskjellige typer oppgaver som den mottar som hendelser på en Kafka-basert hendelsestrøm.
+> Oppgavene varierer fra veldig enkle til mer komplekse.
+
 Go-bibliotek for å spille LEESAH!
 
 ## Kom i gang
 
-Vi har et eget template-repo som ligger under [navikt/leesah-game-template-go](https://github.com/navikt/leesah-game-template-go).
-Ellers kan du ta utgangspunkt i koden nedenfor.
+Det finnes to versjoner av Leesah-game!
+En hvor man lager en applikasjon som kjører på Nais, og en hvor man spiller lokalt direkte fra terminalen sin.
+Dette biblioteket kan brukes i begge versjoner, men denne dokumentasjonen dekker kun lokal spilling.
+Vi har et eget template-repo som ligger under [navikt/leesah-game-template-go](https://github.com/navikt/leesah-game-template-go) for å spille Nais-versjonen.
+
+### Hent credentials
+
+Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah-game-cert.ekstern.dev.nav.no/certs](https://leesah-game-cert.ekstern.dev.nav.no/certs), brukernavn og passord skal du få utdelt.
+Du kan også bruke kommandoen nedenfor:
+
+```bash
+wget --user <username> --password <password> -O leesah-creds.zip https://leesah-game-cert.ekstern.dev.nav.no/certs && unzip leesah-creds.zip 
+```
+
+### Eksempelkode
+
+Nedenfor er det et fungerende eksempel som svarer på lagregistreringsspørsmålet med et navn du velger, og en farge du velger:
 
 ```go
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log/slog"
-	"os"
 
-	"github.com/google/uuid"
 	"github.com/navikt/go-leesah"
 )
 
-var config leesah.RapidConfig
-
-func init() {
-	os.Setenv("KAFKA_GROUP_ID", uuid.New().String())
-	os.Setenv("KAFKA_TOPIC", "leesah-quiz.leesah-rapid-v2")
-
-	flag.StringVar(&config.Brokers, "brokers", os.Getenv("KAFKA_BROKERS"), "Kafka broker")
-	flag.StringVar(&config.Topic, "topic", os.Getenv("KAFKA_TOPIC"), "Kafka topic")
-	flag.StringVar(&config.GroupID, "group-id", os.Getenv("KAFKA_GROUP_ID"), "Kafka group ID")
-	flag.StringVar(&config.KafkaCertPath, "kafka-cert-path", os.Getenv("KAFKA_CERTIFICATE_PATH"), "Path to Kafka certificate")
-	flag.StringVar(&config.KafkaPrivateKeyPath, "kafka-private-key-path", os.Getenv("KAFKA_PRIVATE_KEY_PATH"), "Path to Kafka private key")
-	flag.StringVar(&config.KafkaCAPath, "kafka-ca-path", os.Getenv("KAFKA_CA_PATH"), "Path to Kafka CA certificate")
-}
+const (
+    // Change the two following variables
+    teamName  = "my-go-team"
+    teamColor = "00ADD8"
+)
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	config.Log = log
-
-	rapid, err := leesah.NewRapid("my-go-team", config)
+	rapid, err := leesah.NewLocalRapid(teamName, slog.Default())
 	if err != nil {
-		log.Error(fmt.Sprintf("failed to create rapid: %s", err))
+		slog.Error(fmt.Sprintf("failed to create rapid: %s", err))
 		return
 	}
 	defer rapid.Close()
 
 	if err := rapid.Run(Answer); err != nil {
-		log.Error(fmt.Sprintf("failed to run rapid: %s", err))
+		slog.Error(fmt.Sprintf("failed to run rapid: %s", err))
 	}
 }
 
 func Answer(question leesah.Question, log *slog.Logger) (string, bool) {
 	log.Info(fmt.Sprintf("%+v", question))
 
-	var answer string
 	switch question.Category {
 	case "team-registration":
-		return "", true
+		return teamColor, true
 	}
 
-	log.Info(fmt.Sprintf("{Category:%s Question:%s Answer:%s", question.Category, question.Question, answer))
 	return "", false
 }
 
 ```
-### Lokal kjøring
 
-```bash
-nais aiven create --pool nav-dev kafka $USER leesah-quiz
-# hent credentials med cmd fra output
+### Kjør lokalt
+
+```shell
+go run .
 ```
