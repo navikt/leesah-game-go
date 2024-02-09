@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
+	"gopkg.in/yaml.v3"
 )
 
 type Rapid struct {
@@ -20,6 +22,7 @@ type Rapid struct {
 	ctx      context.Context
 	teamName string
 	log      *slog.Logger
+	kafkaDir string
 }
 
 type RapidConfig struct {
@@ -30,9 +33,95 @@ type RapidConfig struct {
 	KafkaPrivateKeyPath string
 	KafkaCAPath         string
 	Log                 *slog.Logger
+	kafkaDir            string
 }
 
+// NewLocalRapid creates a new Rapid instance with a local configuration.
+// The local configuration is read from "certs/student-creds.yaml".
+func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
+	rapidConfig, err := loadLocalConfig(log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load local config: %s", err)
+	}
+
+	rapid, err := NewRapid(teamName, rapidConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rapid: %s", err)
+	}
+
+	rapid.kafkaDir = rapidConfig.kafkaDir
+
+	return rapid, nil
+}
+
+func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
+	log.Info("Loading local config")
+	localFile, err := os.ReadFile("student-creds.yaml")
+	if err != nil {
+		return RapidConfig{}, fmt.Errorf("failed to read local file: %s", err)
+	}
+
+	type creds struct {
+		Broker string   `yaml:"broker"`
+		Topics []string `yaml:"topics"`
+		CA     string   `yaml:"ca"`
+		User   struct {
+			AccessKey         string `yaml:"access_key"`
+			AccessCertificate string `yaml:"access_cert"`
+			Username          string `yaml:"username"`
+		} `yaml:"user"`
+	}
+
+	var c creds
+	if err := yaml.Unmarshal(localFile, &c); err != nil {
+		return RapidConfig{}, fmt.Errorf("failed to unmarshal local file: %s", err)
+	}
+
+	dir, err := os.MkdirTemp("", "kafka")
+	if err != nil {
+		return RapidConfig{}, err
+	}
+
+	caFile, err := writeToTempDir(dir, "ca.pem", c.CA)
+	if err != nil {
+		return RapidConfig{}, err
+	}
+
+	certFile, err := writeToTempDir(dir, "cert.crt", c.User.AccessCertificate)
+	if err != nil {
+		return RapidConfig{}, err
+	}
+
+	privateKeyFile, err := writeToTempDir(dir, "private-key.pem", c.User.AccessKey)
+	if err != nil {
+		return RapidConfig{}, err
+	}
+
+	return RapidConfig{
+		Log:                 log,
+		Brokers:             c.Broker,
+		Topic:               c.Topics[0],
+		GroupID:             uuid.New().String(),
+		KafkaCertPath:       certFile,
+		KafkaPrivateKeyPath: privateKeyFile,
+		KafkaCAPath:         caFile,
+		kafkaDir:            dir,
+	}, nil
+}
+
+func writeToTempDir(dir, fileName, data string) (string, error) {
+	filePath := filepath.Join(dir, fileName)
+	if err := os.WriteFile(filePath, []byte(data), 0o666); err != nil {
+		return "", err
+	}
+
+	return filePath, nil
+}
+
+// NewRapid creates a new Rapid instance with the given configuration.
+// It is used when playing the Nais-edition of Leesah.
 func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
+	config.Log.Info("Creating new rapid")
 	keypair, err := tls.LoadX509KeyPair(config.KafkaCertPath, config.KafkaPrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Access Key and/or Access Certificate: %s", err)
@@ -96,6 +185,7 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 }
 
 func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) error {
+	r.log.Info("Rapid is running, starting to read messages")
 	for {
 		kafkaMessage, err := r.reader.FetchMessage(r.ctx)
 		if err != nil {
@@ -103,18 +193,27 @@ func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) 
 			continue
 		}
 
-		var message Message
-		if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
-			return fmt.Errorf("failed to unmarshal message: %s", err)
+		var mm MinimalMessage
+		if err := json.Unmarshal(kafkaMessage.Value, &mm); err != nil {
+			r.log.Debug(string(kafkaMessage.Value))
+			return fmt.Errorf("failed to unmarshal minimal message: %s", err)
 		}
 
-		answer, ok := answerQuestion(message.ToQuestion(), r.log)
-		if !ok {
-			continue
-		}
+		if mm.Type == MessageTypeQuestion {
+			var message Message
+			if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
+				fmt.Println(string(kafkaMessage.Value))
+				return fmt.Errorf("failed to unmarshal message: %s", err)
+			}
 
-		if err := r.postAnswer(message, answer); err != nil {
-			return fmt.Errorf("failed to post answer: %s", err)
+			answer, ok := answerQuestion(message.ToQuestion(), r.log)
+			if !ok {
+				continue
+			}
+
+			if err := r.postAnswer(message, answer); err != nil {
+				return fmt.Errorf("failed to post answer: %s", err)
+			}
 		}
 
 		if err := r.reader.CommitMessages(r.ctx, kafkaMessage); err != nil {
@@ -123,22 +222,21 @@ func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) 
 	}
 }
 
+// postAnswer posts your answer to the Kafka topic
 func (r *Rapid) postAnswer(message Message, answer string) error {
 	kafkaMessage := Message{
-		MessageID:  uuid.New(),
-		QuestionID: message.MessageID,
+		Answer:     answer,
 		Category:   message.Category,
 		Created:    time.Now().Format(LeesahTimeformat),
+		MessageID:  uuid.New().String(),
+		QuestionID: message.MessageID,
 		TeamName:   r.teamName,
 		Type:       MessageTypeAnswer,
-		Answer:     answer,
 	}
 
-	return r.writeMessage(kafkaMessage)
-}
+	r.log.Info(fmt.Sprintf("Posting your answer: %s", answer))
 
-func (r *Rapid) writeMessage(message Message) error {
-	output, err := json.Marshal(message)
+	output, err := json.Marshal(kafkaMessage)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %s", err)
 	}
@@ -150,4 +248,7 @@ func (r *Rapid) writeMessage(message Message) error {
 func (r *Rapid) Close() {
 	r.writer.Close()
 	r.reader.Close()
+	if r.kafkaDir != "" {
+		os.RemoveAll(r.kafkaDir)
+	}
 }

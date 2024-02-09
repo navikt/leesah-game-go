@@ -26,9 +26,12 @@ charts/*
 *.env
 .default-egress-airflow-worker.yaml
 
-hack
-
 # npm
 node_modules
 !package-lock.json
 !package.json
+
+# leesah
+leesah-creds.zip
+student-certs.yaml
+test/

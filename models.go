@@ -1,9 +1,5 @@
 package leesah
 
-import (
-	"github.com/google/uuid"
-)
-
 type (
 	MessageType string
 )
@@ -15,16 +11,24 @@ const (
 	LeesahTimeformat = "2006-01-02T15:04:05.999999"
 )
 
+type Question struct {
+	Category string
+	Question string
+}
+
+type MinimalMessage struct {
+	Type MessageType `json:"type"`
+}
+
 type Message struct {
-	Answer     string      `json:"answer,omitempty"`
-	AnswerID   *uuid.UUID  `json:"answerId,omitempty"`
-	MessageID  uuid.UUID   `json:"messageId,omitempty"`
+	Answer     string      `json:"answer"`
+	Category   string      `json:"category"`
+	Created    string      `json:"created"`
+	MessageID  string      `json:"messageId"`
 	Question   string      `json:"question,omitempty"`
-	QuestionID uuid.UUID   `json:"questionId,omitempty"`
-	Category   string      `json:"category,omitempty"`
-	Created    string      `json:"created,omitempty"`
-	TeamName   string      `json:"teamName,omitempty"`
-	Type       MessageType `json:"type,omitempty"`
+	QuestionID string      `json:"questionId"`
+	TeamName   string      `json:"teamName"`
+	Type       MessageType `json:"type"`
 }
 
 func (m Message) ToQuestion() Question {
@@ -32,9 +36,4 @@ func (m Message) ToQuestion() Question {
 		Category: m.Category,
 		Question: m.Question,
 	}
-}
-
-type Question struct {
-	Category string
-	Question string
 }
