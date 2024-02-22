@@ -36,8 +36,11 @@ import (
 	"github.com/navikt/go-leesah"
 )
 
+// 1. Ensure credential files are in the certs directory
+// 2. Set `teamName` to your preferred team name
+// 3. Set `teamColor` to your preferred team color
+
 const (
-    // Change the two following variables
     teamName  = "my-go-team"
     teamColor = "00ADD8"
 )
@@ -45,18 +48,18 @@ const (
 func main() {
 	rapid, err := leesah.NewLocalRapid(teamName, slog.Default())
 	if err != nil {
-		slog.Error(fmt.Sprintf("failed to create rapid: %s", err))
+		slog.Error("failed to create rapid", "error", err)
 		return
 	}
 	defer rapid.Close()
 
 	if err := rapid.Run(Answer); err != nil {
-		slog.Error(fmt.Sprintf("failed to run rapid: %s", err))
+		slog.Error("failed to run rapid", "error", err)
 	}
 }
 
 func Answer(question leesah.Question, log *slog.Logger) (string, bool) {
-	log.Info(fmt.Sprintf("%+v", question))
+	slog.Info(fmt.Sprintf("%+v", question))
 
 	switch question.Category {
 	case "team-registration":
@@ -65,10 +68,17 @@ func Answer(question leesah.Question, log *slog.Logger) (string, bool) {
 
 	return "", false
 }
-
 ```
 
 ### Kjør lokalt
+
+Først må du sette opp avhengigheten:
+
+```shell
+go get github.com/navikt/go-leesah
+```
+
+Så kan du kjøre det:
 
 ```shell
 go run .
