@@ -56,7 +56,13 @@ func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
 
 func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
 	log.Info("Loading local config")
-	localFile, err := os.ReadFile("student-creds.yaml")
+
+	certPath := "certs/student-creds.yaml"
+	if os.Getenv("QUIZ_CERT") != "" {
+		certPath = os.Getenv("QUIZ_CERT")
+	}
+
+	localFile, err := os.ReadFile(certPath)
 	if err != nil {
 		return RapidConfig{}, fmt.Errorf("failed to read local file: %s", err)
 	}
@@ -97,10 +103,15 @@ func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
 		return RapidConfig{}, err
 	}
 
+	topic := c.Topics[0]
+	if os.Getenv("QUIZ_TOPIC") != "" {
+		topic = os.Getenv("QUIZ_TOPIC")
+	}
+
 	return RapidConfig{
 		Log:                 log,
 		Brokers:             c.Broker,
-		Topic:               c.Topics[0],
+		Topic:               topic,
 		GroupID:             uuid.New().String(),
 		KafkaCertPath:       certFile,
 		KafkaPrivateKeyPath: privateKeyFile,
