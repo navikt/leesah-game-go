@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,7 +27,7 @@ type Rapid struct {
 }
 
 type RapidConfig struct {
-	Brokers             string
+	Broker              string
 	Topic               string
 	GroupID             string
 	KafkaCertPath       string
@@ -111,9 +112,13 @@ func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
 		topic = os.Getenv("QUIZ_TOPIC")
 	}
 
+	if !strings.Contains(c.Broker, ":") {
+		c.Broker += ":26484"
+	}
+
 	return RapidConfig{
 		Log:                 log,
-		Brokers:             c.Broker,
+		Broker:              c.Broker,
 		Topic:               topic,
 		GroupID:             uuid.New().String(),
 		KafkaCertPath:       certFile,
@@ -167,7 +172,7 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	}
 
 	rapid.writer = &kafka.Writer{
-		Addr:     kafka.TCP(config.Brokers),
+		Addr:     kafka.TCP(config.Broker),
 		Topic:    config.Topic,
 		Balancer: &kafka.LeastBytes{},
 		Transport: &kafka.Transport{
@@ -185,7 +190,7 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	}
 
 	readerConfig := kafka.ReaderConfig{
-		Brokers:   []string{config.Brokers},
+		Brokers:   []string{config.Broker},
 		Topic:     config.Topic,
 		Partition: 0,
 		MaxBytes:  10e6, // 10MB
