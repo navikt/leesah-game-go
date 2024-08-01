@@ -5,8 +5,8 @@ type (
 )
 
 const (
-	MessageTypeQuestion MessageType = "QUESTION"
-	MessageTypeAnswer               = "ANSWER"
+	MessageTypeQuestion MessageType = "SPØRSMÅL"
+	MessageTypeAnswer   MessageType = "SVAR"
 
 	// LeesahTimeformat is Python's time format for Leesah messages, which is a form of RFC3339
 	LeesahTimeformat = "2006-01-02T15:04:05.999999"
@@ -25,14 +25,14 @@ type MinimalMessage struct {
 
 // Message is a struct that represents a message in the Leesah Kafka topic
 type Message struct {
-	Answer     string      `json:"answer"`
-	Category   string      `json:"category"`
-	Created    string      `json:"created"`
-	MessageID  string      `json:"messageId"`
-	Question   string      `json:"question,omitempty"`
-	QuestionID string      `json:"questionId"`
-	TeamName   string      `json:"teamName"`
-	Type       MessageType `json:"type"`
+	Answer     string      `json:"svar"`
+	Category   string      `json:"kategorinavn"`
+	Created    string      `json:"@opprettet"`
+	MessageID  string      `json:"svarId"`
+	Question   string      `json:"spørsmål,omitempty"`
+	QuestionID string      `json:"spørsmålId"`
+	TeamName   string      `json:"lagnavn"`
+	Type       MessageType `json:"@event_name"`
 }
 
 // ToQuestion converts a Message to a simpler Question
