@@ -38,6 +38,9 @@ type RapidConfig struct {
 
 // NewLocalRapid creates a new Rapid instance with a local configuration.
 // The local configuration is read from "certs/student-creds.yaml".
+// It is used when playing the local edition of Leesah.
+// You can override the path to the local certification by setting the environment variable QUIZ_CERT.
+// You can also override the topic by setting the environment variable QUIZ_TOPIC.
 func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
 	rapidConfig, err := loadLocalConfig(log)
 	if err != nil {
@@ -213,7 +216,7 @@ func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) 
 		if mm.Type == MessageTypeQuestion {
 			var message Message
 			if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
-				fmt.Println(string(kafkaMessage.Value))
+				r.log.Debug(string(kafkaMessage.Value))
 				return fmt.Errorf("failed to unmarshal message: %s", err)
 			}
 
