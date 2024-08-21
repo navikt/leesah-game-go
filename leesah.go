@@ -18,12 +18,13 @@ import (
 )
 
 type Rapid struct {
-	writer   *kafka.Writer
-	reader   *kafka.Reader
-	ctx      context.Context
-	teamName string
-	log      *slog.Logger
-	kafkaDir string
+	writer      *kafka.Writer
+	reader      *kafka.Reader
+	ctx         context.Context
+	teamName    string
+	lastMessage *Message
+	log         *slog.Logger
+	kafkaDir    string
 }
 
 type RapidConfig struct {
@@ -59,11 +60,18 @@ func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
 }
 
 func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
-	log.Info("Loading local config")
+	log.Info("⚙️ Loading local config")
 
-	certPath := "certs/student-creds.yaml"
-	if os.Getenv("QUIZ_CERT") != "" {
-		certPath = os.Getenv("QUIZ_CERT")
+	certPath := "leesah-certs.yaml"
+	if os.Getenv("QUIZ_CERTS") != "" {
+		certPath = os.Getenv("QUIZ_CERTS")
+	}
+
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		certPath = "certs/leesah-certs.yaml"
+		if _, err := os.Stat(certPath); os.IsNotExist(err) {
+			return RapidConfig{}, fmt.Errorf("can't find certs in 'leesah-certs.yaml', '$QUIZ_CERTS', or 'certs/leesah-certs.yaml'")
+		}
 	}
 
 	localFile, err := os.ReadFile(certPath)
@@ -140,7 +148,7 @@ func writeToTempDir(dir, fileName, data string) (string, error) {
 // NewRapid creates a new Rapid instance with the given configuration.
 // It is used when playing the Nais-edition of Leesah.
 func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
-	config.Log.Info("Creating new rapid")
+	config.Log.Info("🔨 Creating new rapid")
 	keypair, err := tls.LoadX509KeyPair(config.KafkaCertPath, config.KafkaPrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Access Key and/or Access Certificate: %s", err)
@@ -200,11 +208,13 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 
 	rapid.reader = kafka.NewReader(readerConfig)
 
+	rapid.log.Info("🚀 Starting QuizRapid...")
+	rapid.log.Info("🔍 Looking for first question")
+
 	return &rapid, nil
 }
 
-func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) error {
-	r.log.Info("Rapid is running, starting to read messages")
+func (r *Rapid) GetQuestion() (Question, error) {
 	for {
 		kafkaMessage, err := r.reader.FetchMessage(r.ctx)
 		if err != nil {
@@ -215,45 +225,48 @@ func (r *Rapid) Run(answerQuestion func(Question, *slog.Logger) (string, bool)) 
 		var mm MinimalMessage
 		if err := json.Unmarshal(kafkaMessage.Value, &mm); err != nil {
 			r.log.Debug(string(kafkaMessage.Value))
-			return fmt.Errorf("failed to unmarshal minimal message: %s", err)
+			return Question{}, fmt.Errorf("failed to unmarshal minimal message: %s", err)
 		}
+
+		// defer r.reader.CommitMessages(r.ctx, kafkaMessage)
 
 		if mm.Type == MessageTypeQuestion {
 			var message Message
 			if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
 				r.log.Debug(string(kafkaMessage.Value))
-				return fmt.Errorf("failed to unmarshal message: %s", err)
+				return Question{}, fmt.Errorf("failed to unmarshal message: %s", err)
 			}
 
-			answer, ok := answerQuestion(message.ToQuestion(), r.log)
-			if !ok {
-				continue
-			}
-
-			if err := r.postAnswer(message, answer); err != nil {
-				return fmt.Errorf("failed to post answer: %s", err)
-			}
-		}
-
-		if err := r.reader.CommitMessages(r.ctx, kafkaMessage); err != nil {
-			return fmt.Errorf("failed to commit message: %s", err)
+			r.lastMessage = &message
+			question := message.ToQuestion()
+			r.log.Info(fmt.Sprintf("📥 Received question: kategorinavn='%s' spørsmål='%s' svarformat='%s'", question.Category, question.Question, question.AnswerFormat))
+			return question, nil
 		}
 	}
 }
 
+func (r *Rapid) Answer(answer string) error {
+	if err := r.postAnswer(r.lastMessage, answer); err != nil {
+		return fmt.Errorf("failed to post answer: %s", err)
+	}
+
+	r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+	r.lastMessage = nil
+
+	return nil
+}
+
 // postAnswer posts your answer to the Kafka topic
-func (r *Rapid) postAnswer(message Message, answer string) error {
+func (r *Rapid) postAnswer(message *Message, answer string) error {
 	kafkaMessage := Message{
 		Answer:     answer,
 		Category:   message.Category,
 		Created:    time.Now().Format(LeesahTimeformat),
-		MessageID:  uuid.New().String(),
-		QuestionID: message.MessageID,
+		AnswerID:   uuid.New().String(),
+		QuestionID: message.QuestionID,
 		TeamName:   r.teamName,
 		Type:       MessageTypeAnswer,
 	}
-
-	r.log.Info(fmt.Sprintf("Posting your answer: %s", answer))
 
 	output, err := json.Marshal(kafkaMessage)
 	if err != nil {
