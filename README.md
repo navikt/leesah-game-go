@@ -61,27 +61,37 @@ const (
 )
 
 func main() {
-	rapid, err := leesah.NewLocalRapid(teamName, slog.Default())
+    log := slog.Default()
+
+	rapid, err := leesah.NewLocalRapid(teamName, log)
 	if err != nil {
-		slog.Error("failed to create rapid", "error", err)
+		log.Error("failed to create rapid", "error", err)
 		return
 	}
 	defer rapid.Close()
 
-	if err := rapid.Run(Answer); err != nil {
-		slog.Error("failed to run rapid", "error", err)
+	for {
+		question, err := rapid.GetQuestion()
+		if err != nil {
+			slog.Error("can't get new question", "error", err)
+		}
+
+		var answer string
+		switch question.Category {
+		case "team-registration":
+			answer = handleTeamRegistration(question)
+		}
+
+		if answer != "" {
+			if err := rapid.Answer(answer); err != nil {
+				log.Error("can't post answer", "error", err)
+			}
+		}
 	}
 }
 
-func Answer(question leesah.Question, log *slog.Logger) (string, bool) {
-    log.Info(fmt.Sprintf("%+v", question))
-
-	switch question.Category {
-	case "team-registration":
-		return teamColor, true
-	}
-
-	return "", false
+func handleTeamRegistration(question leesah.Question) string {
+	return teamColor
 }
 ```
 

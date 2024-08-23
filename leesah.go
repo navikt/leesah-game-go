@@ -17,7 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Rapid struct {
+// rapid is a struct that represents a connection to the Leesah Kafka topic
+// Use the getQuestion method to get the next question from the topic, and
+// the answer method to post your answer to the topic.
+type rapid struct {
 	writer      *kafka.Writer
 	reader      *kafka.Reader
 	ctx         context.Context
@@ -27,6 +30,8 @@ type Rapid struct {
 	kafkaDir    string
 }
 
+// RapidConfig is a struct that represents the configuration for a Rapid instance
+// This is used when creating a new Rapid instance on the NAIS platform
 type RapidConfig struct {
 	Broker         string
 	CAPath         string
@@ -39,11 +44,13 @@ type RapidConfig struct {
 }
 
 // NewLocalRapid creates a new Rapid instance with a local configuration.
-// The local configuration is read from "certs/student-creds.yaml".
+// The local configuration is read from "leesah-certs.yaml".
 // It is used when playing the local edition of Leesah.
-// You can override the path to the local certification by setting the environment variable QUIZ_CERT.
-// You can also override the topic by setting the environment variable QUIZ_TOPIC.
-func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
+// You can override the path to the local certification by setting the
+// environment variable QUIZ_CERTS.
+// You can also override the topic by setting the environment variable
+// QUIZ_TOPIC, or else the first topic in the file will be used.
+func NewLocalRapid(teamName string, log *slog.Logger) (*rapid, error) {
 	rapidConfig, err := loadLocalConfig(log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load local config: %s", err)
@@ -147,7 +154,7 @@ func writeToTempDir(dir, fileName, data string) (string, error) {
 
 // NewRapid creates a new Rapid instance with the given configuration.
 // It is used when playing the Nais-edition of Leesah.
-func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
+func NewRapid(teamName string, config RapidConfig) (*rapid, error) {
 	config.Log.Info("🔨 Creating new rapid")
 	keypair, err := tls.LoadX509KeyPair(config.CertPath, config.PrivateKeyPath)
 	if err != nil {
@@ -173,7 +180,7 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 		},
 	}
 
-	rapid := Rapid{
+	rapid := rapid{
 		ctx:      context.Background(),
 		teamName: teamName,
 		log:      config.Log,
@@ -214,7 +221,9 @@ func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	return &rapid, nil
 }
 
-func (r *Rapid) GetQuestion() (Question, error) {
+// GetQuestion will wait for the next question from the Kafka topic
+// and return it as a Question struct.
+func (r *rapid) GetQuestion() (Question, error) {
 	for {
 		kafkaMessage, err := r.reader.FetchMessage(r.ctx)
 		if err != nil {
@@ -222,7 +231,7 @@ func (r *Rapid) GetQuestion() (Question, error) {
 			continue
 		}
 
-		var mm MinimalMessage
+		var mm minimalMessage
 		if err := json.Unmarshal(kafkaMessage.Value, &mm); err != nil {
 			r.log.Debug(string(kafkaMessage.Value))
 			return Question{}, fmt.Errorf("failed to unmarshal minimal message: %s", err)
@@ -245,25 +254,14 @@ func (r *Rapid) GetQuestion() (Question, error) {
 	}
 }
 
-func (r *Rapid) Answer(answer string) error {
-	if err := r.postAnswer(r.lastMessage, answer); err != nil {
-		return fmt.Errorf("failed to post answer: %s", err)
-	}
-
-	r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
-	r.lastMessage = nil
-
-	return nil
-}
-
-// postAnswer posts your answer to the Kafka topic
-func (r *Rapid) postAnswer(message *Message, answer string) error {
+// Answer creates a Kafka message and posts it to the Kafka topic
+func (r *rapid) Answer(answer string) error {
 	kafkaMessage := Message{
 		Answer:     answer,
-		Category:   message.Category,
+		Category:   r.lastMessage.Category,
 		Created:    time.Now().Format(LeesahTimeformat),
 		AnswerID:   uuid.New().String(),
-		QuestionID: message.QuestionID,
+		QuestionID: r.lastMessage.QuestionID,
 		TeamName:   r.teamName,
 		Type:       MessageTypeAnswer,
 	}
@@ -273,11 +271,18 @@ func (r *Rapid) postAnswer(message *Message, answer string) error {
 		return fmt.Errorf("failed to marshal message: %s", err)
 	}
 
-	return r.writer.WriteMessages(r.ctx, kafka.Message{Value: output})
+	if err := r.writer.WriteMessages(r.ctx, kafka.Message{Value: output}); err != nil {
+		return fmt.Errorf("failed to write message: %s", err)
+	}
+
+	r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+	r.lastMessage = nil
+
+	return nil
 }
 
 // Close closes the Kafka writer and reader
-func (r *Rapid) Close() {
+func (r *rapid) Close() {
 	r.writer.Close()
 	r.reader.Close()
 	if r.kafkaDir != "" {
