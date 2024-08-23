@@ -62,8 +62,11 @@ const (
 
 func main() {
     log := slog.Default()
+	ignoredCategories := []leesah.QuestionCategory{
+		leesah.TeamRegistration,
+	}
 
-	rapid, err := leesah.NewLocalRapid(teamName, log)
+	rapid, err := leesah.NewLocalRapid(teamName, log, ignoredCategories)
 	if err != nil {
 		log.Error("failed to create rapid", "error", err)
 		return
@@ -78,7 +81,7 @@ func main() {
 
 		var answer string
 		switch question.Category {
-		case "team-registration":
+		case leesah.TeamRegistration:
 			answer = handleTeamRegistration(question)
 		}
 

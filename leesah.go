@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,26 +22,28 @@ import (
 // Use the getQuestion method to get the next question from the topic, and
 // the answer method to post your answer to the topic.
 type rapid struct {
-	writer      *kafka.Writer
-	reader      *kafka.Reader
-	ctx         context.Context
-	teamName    string
-	lastMessage *Message
-	log         *slog.Logger
-	kafkaDir    string
+	ignoredCategories []QuestionCategory
+	writer            *kafka.Writer
+	reader            *kafka.Reader
+	ctx               context.Context
+	teamName          string
+	lastMessage       *Message
+	log               *slog.Logger
+	kafkaDir          string
 }
 
 // RapidConfig is a struct that represents the configuration for a Rapid instance
 // This is used when creating a new Rapid instance on the NAIS platform
 type RapidConfig struct {
-	Broker         string
-	CAPath         string
-	CertPath       string
-	GroupID        string
-	KafkaDir       string
-	Log            *slog.Logger
-	PrivateKeyPath string
-	Topic          string
+	Broker            string
+	CAPath            string
+	CertPath          string
+	GroupID           string
+	IgnoredCategories []QuestionCategory
+	KafkaDir          string
+	Log               *slog.Logger
+	PrivateKeyPath    string
+	Topic             string
 }
 
 // NewLocalRapid creates a new Rapid instance with a local configuration.
@@ -50,8 +53,8 @@ type RapidConfig struct {
 // environment variable QUIZ_CERTS.
 // You can also override the topic by setting the environment variable
 // QUIZ_TOPIC, or else the first topic in the file will be used.
-func NewLocalRapid(teamName string, log *slog.Logger) (*rapid, error) {
-	rapidConfig, err := loadLocalConfig(log)
+func NewLocalRapid(teamName string, log *slog.Logger, ignoredCategories []QuestionCategory) (*rapid, error) {
+	rapidConfig, err := loadLocalConfig(log, ignoredCategories)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load local config: %s", err)
 	}
@@ -61,12 +64,10 @@ func NewLocalRapid(teamName string, log *slog.Logger) (*rapid, error) {
 		return nil, fmt.Errorf("failed to create rapid: %s", err)
 	}
 
-	rapid.kafkaDir = rapidConfig.KafkaDir
-
 	return rapid, nil
 }
 
-func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
+func loadLocalConfig(log *slog.Logger, ignoredCategories []QuestionCategory) (RapidConfig, error) {
 	log.Info("⚙️ Loading local config")
 
 	certPath := "leesah-certs.yaml"
@@ -132,14 +133,15 @@ func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
 	}
 
 	return RapidConfig{
-		Log:            log,
-		Broker:         c.Broker,
-		Topic:          topic,
-		GroupID:        uuid.New().String(),
-		CertPath:       certFile,
-		PrivateKeyPath: privateKeyFile,
-		CAPath:         caFile,
-		KafkaDir:       dir,
+		Log:               log,
+		Broker:            c.Broker,
+		Topic:             topic,
+		GroupID:           uuid.New().String(),
+		CertPath:          certFile,
+		PrivateKeyPath:    privateKeyFile,
+		CAPath:            caFile,
+		KafkaDir:          dir,
+		IgnoredCategories: ignoredCategories,
 	}, nil
 }
 
@@ -181,9 +183,11 @@ func NewRapid(teamName string, config RapidConfig) (*rapid, error) {
 	}
 
 	rapid := rapid{
-		ctx:      context.Background(),
-		teamName: teamName,
-		log:      config.Log,
+		ctx:               context.Background(),
+		teamName:          teamName,
+		ignoredCategories: config.IgnoredCategories,
+		log:               config.Log,
+		kafkaDir:          config.KafkaDir,
 	}
 
 	rapid.writer = &kafka.Writer{
@@ -248,7 +252,10 @@ func (r *rapid) GetQuestion() (Question, error) {
 
 			r.lastMessage = &message
 			question := message.ToQuestion()
-			r.log.Info(fmt.Sprintf("📥 Received question: kategorinavn='%s' spørsmål='%s' svarformat='%s'", question.Category, question.Question, question.AnswerFormat))
+			if !slices.Contains(r.ignoredCategories, question.Category) {
+				r.log.Info(fmt.Sprintf("📥 Received question: kategorinavn='%s' spørsmål='%s' svarformat='%s'", question.Category, question.Question, question.AnswerFormat))
+			}
+
 			return question, nil
 		}
 	}
@@ -275,7 +282,10 @@ func (r *rapid) Answer(answer string) error {
 		return fmt.Errorf("failed to write message: %s", err)
 	}
 
-	r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+	if !slices.Contains(r.ignoredCategories, r.lastMessage.Category) {
+		r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+	}
+
 	r.lastMessage = nil
 
 	return nil
