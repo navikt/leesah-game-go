@@ -28,14 +28,14 @@ type Rapid struct {
 }
 
 type RapidConfig struct {
-	Broker              string
-	Topic               string
-	GroupID             string
-	KafkaCertPath       string
-	KafkaPrivateKeyPath string
-	KafkaCAPath         string
-	Log                 *slog.Logger
-	kafkaDir            string
+	Broker         string
+	CAPath         string
+	CertPath       string
+	GroupID        string
+	KafkaDir       string
+	Log            *slog.Logger
+	PrivateKeyPath string
+	Topic          string
 }
 
 // NewLocalRapid creates a new Rapid instance with a local configuration.
@@ -54,7 +54,7 @@ func NewLocalRapid(teamName string, log *slog.Logger) (*Rapid, error) {
 		return nil, fmt.Errorf("failed to create rapid: %s", err)
 	}
 
-	rapid.kafkaDir = rapidConfig.kafkaDir
+	rapid.kafkaDir = rapidConfig.KafkaDir
 
 	return rapid, nil
 }
@@ -125,14 +125,14 @@ func loadLocalConfig(log *slog.Logger) (RapidConfig, error) {
 	}
 
 	return RapidConfig{
-		Log:                 log,
-		Broker:              c.Broker,
-		Topic:               topic,
-		GroupID:             uuid.New().String(),
-		KafkaCertPath:       certFile,
-		KafkaPrivateKeyPath: privateKeyFile,
-		KafkaCAPath:         caFile,
-		kafkaDir:            dir,
+		Log:            log,
+		Broker:         c.Broker,
+		Topic:          topic,
+		GroupID:        uuid.New().String(),
+		CertPath:       certFile,
+		PrivateKeyPath: privateKeyFile,
+		CAPath:         caFile,
+		KafkaDir:       dir,
 	}, nil
 }
 
@@ -149,12 +149,12 @@ func writeToTempDir(dir, fileName, data string) (string, error) {
 // It is used when playing the Nais-edition of Leesah.
 func NewRapid(teamName string, config RapidConfig) (*Rapid, error) {
 	config.Log.Info("🔨 Creating new rapid")
-	keypair, err := tls.LoadX509KeyPair(config.KafkaCertPath, config.KafkaPrivateKeyPath)
+	keypair, err := tls.LoadX509KeyPair(config.CertPath, config.PrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Access Key and/or Access Certificate: %s", err)
 	}
 
-	caCert, err := os.ReadFile(config.KafkaCAPath)
+	caCert, err := os.ReadFile(config.CAPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA Certificate file: %s", err)
 	}
