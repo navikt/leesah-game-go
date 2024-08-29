@@ -16,6 +16,7 @@ const (
 // Question is a simplified version of a Message with just the category,
 // question, and answer format
 type Question struct {
+	ID           string
 	Category     string
 	Question     string
 	AnswerFormat string
@@ -43,6 +44,7 @@ type Message struct {
 // ToQuestion converts a Message to a simpler Question model
 func (m Message) ToQuestion() Question {
 	return Question{
+		ID:           m.QuestionID,
 		Category:     m.Category,
 		Question:     m.Question,
 		AnswerFormat: m.AnswerFormat,
