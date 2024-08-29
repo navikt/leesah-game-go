@@ -62,8 +62,8 @@ const (
 
 func main() {
     log := slog.Default()
-	ignoredCategories := []leesah.QuestionCategory{
-		leesah.TeamRegistration,
+	ignoredCategories := []string{
+		// "team-registration",
 	}
 
 	rapid, err := leesah.NewLocalRapid(teamName, log, ignoredCategories)
@@ -81,7 +81,7 @@ func main() {
 
 		var answer string
 		switch question.Category {
-		case leesah.TeamRegistration:
+		case "team-registration":
 			answer = handleTeamRegistration(question)
 		}
 

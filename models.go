@@ -8,22 +8,6 @@ const (
 	MessageTypeAnswer               = "SVAR"
 )
 
-// QuestionCategory is an enum for the category of a question in the Leesah Kafka topic
-type QuestionCategory string
-
-const (
-	TeamRegistration QuestionCategory = "team-registration"
-	Aritmetikk       QuestionCategory = "aritmetikk"
-	Bankkonto        QuestionCategory = "bankkonto"
-	Base64           QuestionCategory = "base64"
-	Deduplication    QuestionCategory = "deduplication"
-	Grunnbeløp       QuestionCategory = "grunnbeløp"
-	MinMax           QuestionCategory = "min-max"
-	PingPong         QuestionCategory = "ping-pong"
-	Primtall         QuestionCategory = "primtall"
-	NAV              QuestionCategory = "NAV"
-)
-
 const (
 	// LeesahTimeformat is Python's time format for Leesah messages, which is a form of RFC3339
 	LeesahTimeformat = "2006-01-02T15:04:05.999999"
@@ -32,7 +16,7 @@ const (
 // Question is a simplified version of a Message with just the category,
 // question, and answer format
 type Question struct {
-	Category     QuestionCategory
+	Category     string
 	Question     string
 	AnswerFormat string
 }
@@ -45,15 +29,15 @@ type minimalMessage struct {
 
 // Message is a struct that represents a message in the Leesah Kafka topic
 type Message struct {
-	Answer       string           `json:"svar"`
-	Category     QuestionCategory `json:"kategorinavn"`
-	Created      string           `json:"@opprettet"`
-	AnswerID     string           `json:"svarId"`
-	Question     string           `json:"spørsmål,omitempty"`
-	QuestionID   string           `json:"spørsmålId"`
-	AnswerFormat string           `json:"svarformat,omitempty"`
-	TeamName     string           `json:"lagnavn"`
-	Type         MessageType      `json:"@event_name"`
+	Answer       string      `json:"svar"`
+	Category     string      `Json:"kategorinavn"`
+	Created      string      `json:"@opprettet"`
+	AnswerID     string      `json:"svarId"`
+	Question     string      `json:"spørsmål,omitempty"`
+	QuestionID   string      `json:"spørsmålId"`
+	AnswerFormat string      `json:"svarformat,omitempty"`
+	TeamName     string      `json:"lagnavn"`
+	Type         MessageType `json:"@event_name"`
 }
 
 // ToQuestion converts a Message to a simpler Question model

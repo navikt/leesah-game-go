@@ -22,7 +22,7 @@ import (
 // Use the getQuestion method to get the next question from the topic, and
 // the answer method to post your answer to the topic.
 type rapid struct {
-	ignoredCategories []QuestionCategory
+	ignoredCategories []string
 	writer            *kafka.Writer
 	reader            *kafka.Reader
 	ctx               context.Context
@@ -39,7 +39,7 @@ type RapidConfig struct {
 	CAPath            string
 	CertPath          string
 	GroupID           string
-	IgnoredCategories []QuestionCategory
+	IgnoredCategories []string
 	KafkaDir          string
 	Log               *slog.Logger
 	PrivateKeyPath    string
@@ -53,7 +53,7 @@ type RapidConfig struct {
 // environment variable QUIZ_CERTS.
 // You can also override the topic by setting the environment variable
 // QUIZ_TOPIC, or else the first topic in the file will be used.
-func NewLocalRapid(teamName string, log *slog.Logger, ignoredCategories []QuestionCategory) (*rapid, error) {
+func NewLocalRapid(teamName string, log *slog.Logger, ignoredCategories []string) (*rapid, error) {
 	rapidConfig, err := loadLocalConfig(log, ignoredCategories)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load local config: %s", err)
@@ -67,7 +67,7 @@ func NewLocalRapid(teamName string, log *slog.Logger, ignoredCategories []Questi
 	return rapid, nil
 }
 
-func loadLocalConfig(log *slog.Logger, ignoredCategories []QuestionCategory) (RapidConfig, error) {
+func loadLocalConfig(log *slog.Logger, ignoredCategories []string) (RapidConfig, error) {
 	log.Info("⚙️ Loading local config")
 
 	certPath := "leesah-certs.yaml"
