@@ -253,7 +253,7 @@ func (r *rapid) GetQuestion() (Question, error) {
 			r.lastMessage = &message
 			question := message.ToQuestion()
 			if !slices.Contains(r.ignoredCategories, question.Category) {
-				r.log.Info(fmt.Sprintf("📥 Received question: kategorinavn='%s' spørsmål='%s' svarformat='%s' id='%s' dokumentasjon='%s'", question.Category, question.Question, question.AnswerFormat, question.ID, question.Documentation))
+				r.log.Info(fmt.Sprintf("📥 Received question: kategori='%s' spørsmål='%s' svarformat='%s' id='%s' dokumentasjon='%s'", question.Category, question.Question, question.AnswerFormat, question.ID, question.Documentation))
 			}
 
 			return question, nil
@@ -283,7 +283,7 @@ func (r *rapid) Answer(answer string) error {
 	}
 
 	if !slices.Contains(r.ignoredCategories, r.lastMessage.Category) {
-		r.log.Info(fmt.Sprintf("📤 Published answer: kategorinavn='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+		r.log.Info(fmt.Sprintf("📤 Published answer: kategori='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
 	}
 
 	r.lastMessage = nil

@@ -32,7 +32,7 @@ type minimalMessage struct {
 // Message is a struct that represents a message in the Leesah Kafka topic
 type Message struct {
 	Answer        string      `json:"svar"`
-	Category      string      `json:"kategorinavn"`
+	Category      string      `json:"kategori"`
 	Created       string      `json:"@opprettet"`
 	AnswerID      string      `json:"svarId"`
 	Question      string      `json:"spørsmål,omitempty"`
