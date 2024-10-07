@@ -29,12 +29,12 @@ go get github.com/navikt/go-leesah
 
 ### Hent Kafkasertifakt
 
-Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah-game-cert.ekstern.dev.nav.no/certs](https://leesah-game-cert.ekstern.dev.nav.no/certs), brukernavn og passord skal du få utdelt.
+Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah.io/certs](https://leesah.io/certs), brukernavn og passord skal du få utdelt.
 
 Du kan også bruke kommandoen nedenfor:
 
 ```bash
-curl -u leesah-game:<se presentasjon> -o leesah-certs.zip https://leesah-certs.ekstern.dev.nav.no && unzip leesah-certs.zip
+curl -u leesah-game:<se presentasjon> -o leesah-certs.zip https://leesah.io/certs && unzip leesah-certs.zip
 ```
 
 ### Eksempelkode
