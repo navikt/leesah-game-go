@@ -14,10 +14,18 @@ Dette biblioteket kan brukes i begge versjoner, men denne dokumentasjonen dekker
 
 Vi har et eget template-repo som ligger under [navikt/leesah-game-template-go](https://github.com/navikt/leesah-game-template-go) for å spille Nais-versjonen.
 
-
 ### Sett opp lokalt miljø
 
 Du trenger Go for å bruke biblioteket, sjekk ut [go.dev/learn](https://go.dev/learn/) for å komme i gang.
+
+Start med å opprette en katalog `leesah-game`.
+
+```shell
+mkdir leesah-game
+cd leesah-game
+go mod init leesah-game
+touch main.go
+```
 
 ### Installer biblioteket
 
@@ -34,18 +42,17 @@ Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah.io/certs
 Du kan også bruke kommandoen nedenfor:
 
 ```bash
-curl -u leesah-game:<se presentasjon> -o leesah-certs.zip https://leesah.io/certs && unzip leesah-certs.zip
+curl -u leesah-game:<passord> -o leesah-certs.zip https://leesah.io/certs && unzip leesah-certs.zip
 ```
 
 ### Eksempelkode
 
-Nedenfor er det et fungerende eksempel som svarer på spørsmålet om lagregistrerings med et navn, og en farge (hex-kode):
+Nedenfor er det et fungerende eksempel som du kan lime inn i `main.go` som svarer på spørsmålet om lagregistrerings med et navn, og en farge (hex-kode):
 
 ```go
 package main
 
 import (
-	"fmt"
 	"log/slog"
 
 	"github.com/navikt/go-leesah"
@@ -99,12 +106,6 @@ func handleTeamRegistration(question leesah.Question) string {
 ```
 
 ### Kjør lokalt
-
-Først må du sette opp avhengigheten:
-
-```shell
-go get github.com/navikt/go-leesah
-```
 
 Så kan du kjøre det:
 
