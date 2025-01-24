@@ -8,7 +8,7 @@ Go-bibliotek for å spille LEESAH!
 
 ## Kom i gang
 
-Det finnes to versjoner av Leesah-game!
+Det finnes to versjoner av Leesah Game!
 En hvor man lager en applikasjon som kjører på Nais, og en hvor man spiller lokalt direkte fra terminalen sin.
 Dette biblioteket kan brukes i begge versjoner, men denne dokumentasjonen dekker **kun** lokal spilling.
 
@@ -37,7 +37,7 @@ go get github.com/navikt/go-leesah
 
 ### Hent Kafkasertifakt
 
-Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah.io/certs](https://leesah.io/certs), brukernavn og passord skal du få utdelt.
+Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah.io/certs](https://leesah.io/certs), brukernavn er `leesah-game`, passord bli utdelt.
 
 Du kan også bruke kommandoen nedenfor:
 
