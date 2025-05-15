@@ -1,24 +1,24 @@
 # Go LEESAH
 
-> Leesah-game er et hendelsedrevet applikasjonsutviklingspill som utfordrer spillerne til å bygge en hendelsedrevet applikasjon. 
-> Applikasjonen håndterer forskjellige typer oppgaver som den mottar som hendelser på en Kafka-basert hendelsestrøm.
-> Oppgavene varierer fra veldig enkle til mer komplekse.
+> Leesah-game is an event-driven application development game that challenges players to build an event-driven application.
+> The application handles different types of tasks that it receives as events on a Kafka-based event stream.
+> The tasks vary from very simple to more complex.
 
-Go-bibliotek for å spille LEESAH!
+This is the Python library to play Leesah!
 
-## Kom i gang
+## Getting started
 
-Det finnes to versjoner av Leesah Game!
-En hvor man lager en applikasjon som kjører på Nais, og en hvor man spiller lokalt direkte fra terminalen sin.
-Dette biblioteket kan brukes i begge versjoner, men denne dokumentasjonen dekker **kun** lokal spilling.
+There are two versions of the the Leesah game!
+On is for local play, directly in the terminal.
+While the other is running on the Nais platform, and you learn how to be a developer in Nav and use Nais.
+This library is used by both versions, but the following documentation is **just** for local play.
 
-Vi har et eget template-repo som ligger under [navikt/leesah-game-template-go](https://github.com/navikt/leesah-game-template-go) for å spille Nais-versjonen.
 
-### Sett opp lokalt miljø
+### Setting up local environment
 
-Du trenger Go for å bruke biblioteket, sjekk ut [go.dev/learn](https://go.dev/learn/) for å komme i gang.
+You need Go to use this library, check out [go.dev/learn](https://go.dev/learn/) to get started with Go.
 
-Start med å opprette en katalog `leesah-game`.
+Start by creating the directory `leesah-game`.
 
 ```shell
 mkdir leesah-game
@@ -27,28 +27,33 @@ go mod init leesah-game
 touch main.go
 ```
 
-### Installer biblioteket
+### Install the library
 
-Det er kun en ekstern avhengighet du trenger, og det er biblioteket [go-leesah](https://pkg.go.dev/github.com/navikt/go-leesah).
+There is only one dependency you need to play, and that is the [go-leesah](https://pkg.go.dev/github.com/navikt/go-leesah) library.
 
 ```shell
 go get github.com/navikt/go-leesah
 ```
 
-### Hent Kafkasertifakt
+### Fetch Kafka certificates
 
-Sertifikater for å koble seg på Kafka ligger tilgjengelig på [leesah.io/certs](https://leesah.io/certs), brukernavn er `leesah-game`, passord bli utdelt.
+You need some certificates to connect to the Kafka cluster, which is available at [leesah.io/certs](https://leesah.io/certs).
+The username is always `leesah-game`, and the password will be distributed.
 
-Du kan også bruke kommandoen nedenfor:
+You can also use the one-liner below:
 
 ```bash
-curl -u leesah-game:<passord> -o leesah-certs.zip https://leesah.io/certs && unzip leesah-certs.zip
+curl -u leesah-game:<se presentasjon> -o leesah-certs.zip https://leesah.io/certs && unzip leesah-certs.zip
 ```
 
-### Eksempelkode
+Using the command above you will end up with `leesah-certs.yaml` in the `leesah-game` directory you made earlier.
 
-Nedenfor er det et fungerende eksempel som du kan lime inn i `main.go` som svarer på spørsmålet om lagregistrerings med et navn, og en farge (hex-kode):
+### Example code
 
+To make it easy to start we have made a working example that answer the first question, `team-registration`, with a dummy name and color.
+All you need to do is update `TEAM_NAME` and `HEX_CODE`, and your ready to compete!
+
+Copy the content below into `main.go`.
 ```go
 package main
 
@@ -70,7 +75,7 @@ const (
 func main() {
     log := slog.Default()
 	ignoredCategories := []string{
-		// "lagregistrering",
+		// "team-registration",
 	}
 
 	rapid, err := leesah.NewLocalRapid(teamName, log, ignoredCategories)
@@ -88,7 +93,7 @@ func main() {
 
 		var answer string
 		switch question.Category {
-		case "lagregistrering":
+		case "team-registration":
 			answer = handleTeamRegistration(question)
 		}
 

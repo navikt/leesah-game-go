@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// rapid is a struct that represents a connection to the Leesah Kafka topic
+// rapid is a struct that represents a connection to the Leesah Kafka topic.
 // Use the getQuestion method to get the next question from the topic, and
 // the answer method to post your answer to the topic.
 type rapid struct {
@@ -32,8 +32,8 @@ type rapid struct {
 	kafkaDir          string
 }
 
-// RapidConfig is a struct that represents the configuration for a Rapid instance
-// This is used when creating a new Rapid instance on the NAIS platform
+// RapidConfig is a struct that represents the configuration for a Rapid instance.
+// This is used when creating a new Rapid instance for the NAIS platform.
 type RapidConfig struct {
 	Broker            string
 	CAPath            string
@@ -181,6 +181,7 @@ func NewRapid(teamName string, config RapidConfig) (*rapid, error) {
 			RootCAs:      caCertPool,
 		},
 	}
+	config.Log.Info("🚀 Starting QuizRapid...")
 
 	rapid := rapid{
 		ctx:               context.Background(),
@@ -219,7 +220,6 @@ func NewRapid(teamName string, config RapidConfig) (*rapid, error) {
 
 	rapid.reader = kafka.NewReader(readerConfig)
 
-	rapid.log.Info("🚀 Starting QuizRapid...")
 	rapid.log.Info("🔍 Looking for first question")
 
 	return &rapid, nil
@@ -241,9 +241,8 @@ func (r *rapid) GetQuestion() (Question, error) {
 			return Question{}, fmt.Errorf("failed to unmarshal minimal message: %s", err)
 		}
 
-		// defer r.reader.CommitMessages(r.ctx, kafkaMessage)
-
-		if mm.Type == MessageTypeQuestion {
+		switch mm.Type {
+		case MessageTypeQuestion:
 			var message Message
 			if err := json.Unmarshal(kafkaMessage.Value, &message); err != nil {
 				r.log.Debug(string(kafkaMessage.Value))
@@ -253,10 +252,27 @@ func (r *rapid) GetQuestion() (Question, error) {
 			r.lastMessage = &message
 			question := message.ToQuestion()
 			if !slices.Contains(r.ignoredCategories, question.Category) {
-				r.log.Info(fmt.Sprintf("📥 Received question: kategori='%s' spørsmål='%s' svarformat='%s' id='%s' dokumentasjon='%s'", question.Category, question.Question, question.AnswerFormat, question.ID, question.Documentation))
+				r.log.Info(fmt.Sprintf("📥 Received question: id='%s' category='%s' question='%s' answerFormat='%s' documentation='%s'", question.ID, question.Category, question.Question, question.AnswerFormat, question.Documentation))
 			}
 
 			return question, nil
+		case MessageTypeFeedback:
+			if mm.TeamName != r.teamName {
+				continue
+			}
+
+			var feedbackMessage FeedbackMessage
+			if err := json.Unmarshal(kafkaMessage.Value, &feedbackMessage); err != nil {
+				r.log.Debug(string(kafkaMessage.Value))
+				return Question{}, fmt.Errorf("failed to unmarshal feedback message: %s", err)
+			}
+
+			if feedbackMessage.Feedback == FeedbackTypeCorrect {
+				r.log.Info(fmt.Sprintf("✅ You answered correctly: id='%s' category='%s'", feedbackMessage.QuestionID, feedbackMessage.Category))
+			} else {
+				r.log.Info(fmt.Sprintf("❌ You answered incorrectly: id='%s' category='%s'", feedbackMessage.QuestionID, feedbackMessage.Category))
+				return Question{}, NewErrorIncorrectAnswer(feedbackMessage.QuestionID, feedbackMessage.Category)
+			}
 		}
 	}
 }
@@ -283,7 +299,7 @@ func (r *rapid) Answer(answer string) error {
 	}
 
 	if !slices.Contains(r.ignoredCategories, r.lastMessage.Category) {
-		r.log.Info(fmt.Sprintf("📤 Published answer: kategori='%s' svar='%s' lagnavn='%s'", r.lastMessage.Category, answer, r.teamName))
+		r.log.Info(fmt.Sprintf("📤 Published answer: category='%s' answer='%s'", r.lastMessage.Category, answer))
 	}
 
 	r.lastMessage = nil
