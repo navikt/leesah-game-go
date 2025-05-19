@@ -43,6 +43,7 @@ type FeedbackMessage struct {
 type minimalMessage struct {
 	Type     MessageType `json:"@event_name"`
 	TeamName string      `json:"lagnavn"`
+	Category string      `json:"kategori"`
 }
 
 // Message is a struct that represents a message in the Leesah Kafka topic.

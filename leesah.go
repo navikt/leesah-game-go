@@ -241,6 +241,10 @@ func (r *rapid) GetQuestion() (Question, error) {
 			return Question{}, fmt.Errorf("failed to unmarshal minimal message: %s", err)
 		}
 
+		if slices.Contains(r.ignoredCategories, mm.Category) {
+			continue
+		}
+
 		switch mm.Type {
 		case MessageTypeQuestion:
 			var message Message
@@ -251,9 +255,7 @@ func (r *rapid) GetQuestion() (Question, error) {
 
 			r.lastMessage = &message
 			question := message.ToQuestion()
-			if !slices.Contains(r.ignoredCategories, question.Category) {
-				r.log.Info(fmt.Sprintf("📥 Received question: id='%s' category='%s' question='%s' answerFormat='%s' documentation='%s'", question.ID, question.Category, question.Question, question.AnswerFormat, question.Documentation))
-			}
+			r.log.Info(fmt.Sprintf("📥 Received question: id='%s' category='%s' question='%s' answerFormat='%s' documentation='%s'", question.ID, question.Category, question.Question, question.AnswerFormat, question.Documentation))
 
 			return question, nil
 		case MessageTypeFeedback:
@@ -298,9 +300,7 @@ func (r *rapid) Answer(answer string) error {
 		return fmt.Errorf("failed to write message: %s", err)
 	}
 
-	if !slices.Contains(r.ignoredCategories, r.lastMessage.Category) {
-		r.log.Info(fmt.Sprintf("📤 Published answer: category='%s' answer='%s'", r.lastMessage.Category, answer))
-	}
+	r.log.Info(fmt.Sprintf("📤 Published answer: category='%s' answer='%s'", r.lastMessage.Category, answer))
 
 	r.lastMessage = nil
 
